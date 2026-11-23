@@ -1,2 +1,2 @@
 aiosmtpd==1.4.6
-cryptography>=43,<47
+cryptography>=50.0.2,<51
