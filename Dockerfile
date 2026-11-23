@@ -16,7 +16,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
  && useradd --system --uid 1000 --home /app app \
  && mkdir -p /app/data && chown app:app /app/data
-COPY --chown=app:app mailrelay/ ./mailrelay/
+# The source files sit at the repo root; inside the image they must form the "mailrelay" package
+# (relative imports + dashboard.html are loaded from it, and ENTRYPOINT runs `python -m mailrelay`).
+COPY --chown=app:app *.py dashboard.html ./mailrelay/
 
 USER app
 VOLUME ["/app/data"]
