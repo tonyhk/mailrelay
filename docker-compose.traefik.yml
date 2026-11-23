@@ -1,0 +1,20 @@
+# Dashboard behind Traefik + Let's Encrypt; SMTP stays published directly on the host.
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+# Needs MAILRELAY_DOMAIN in .env and an existing external Docker network (TRAEFIK_NETWORK).
+services:
+  mailrelay:
+    ports: !override
+      - "${MAILRELAY_SMTP_PUBLISH:-25}:2525"
+    networks: [default, traefik]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
+      - traefik.http.routers.mailrelay.rule=Host(`${MAILRELAY_DOMAIN}`)
+      - traefik.http.routers.mailrelay.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.mailrelay.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
+      - traefik.http.services.mailrelay.loadbalancer.server.port=8080
+
+networks:
+  traefik:
+    name: ${TRAEFIK_NETWORK:-traefik}
+    external: true

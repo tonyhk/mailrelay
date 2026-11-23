@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mailrelay · overview</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #1b1f24; --muted: #667085; --line: #e4e7ec;
+    --accent: #2f5bea; --ok: #12805c; --ok-bg: #e6f4ee; --warn: #a15c00; --warn-bg: #fdf1dc;
+    --bad: #b42318; --bad-bg: #fde8e7; --info: #475467; --info-bg: #eef1f5;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1216; --panel: #171b21; --ink: #e6e8eb; --muted: #8b95a3; --line: #262c35;
+      --accent: #7c9bff; --ok: #4fd1a1; --ok-bg: #12352a; --warn: #f5b85b; --warn-bg: #3a2a10;
+      --bad: #ff8a80; --bad-bg: #3d1b19; --info: #b4bcc8; --info-bg: #222831; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: var(--panel);
+           border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; letter-spacing: .2px; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  .listen { color: var(--muted); font-size: 13px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .listen b { color: var(--ink); font-weight: 500; }
+  .spacer { flex: 1; }
+  .live { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .dot.off { background: var(--bad); }
+  main { padding: 20px 24px 40px; max-width: 1500px; margin: 0 auto; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card .k { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+  .card .v { font-size: 28px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .card .s { color: var(--muted); font-size: 12px; }
+  .card.ok .v { color: var(--ok); } .card.warn .v { color: var(--warn); } .card.bad .v { color: var(--bad); }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+  @media (max-width: 1000px) { .grid2 { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  section h2 { font-size: 14px; margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--line);
+               display: flex; align-items: center; gap: 10px; }
+  section h2 small { color: var(--muted); font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 500; background: var(--panel); white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .muted { color: var(--muted); }
+  .trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 500; }
+  .pill.sent { color: var(--ok); background: var(--ok-bg); }
+  .pill.queued, .pill.sending { color: var(--warn); background: var(--warn-bg); }
+  .pill.bounced, .pill.expired, .pill.failed { color: var(--bad); background: var(--bad-bg); }
+  .pill.relay, .pill.api { color: var(--info); background: var(--info-bg); }
+  .toolbar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .chip { border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 4px 12px;
+          border-radius: 99px; cursor: pointer; font: inherit; font-size: 13px; }
+  .chip.on { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  input[type=search] { flex: 1; min-width: 220px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+                       background: var(--bg); color: var(--ink); font: inherit; }
+  button.act { border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 12px;
+               border-radius: 8px; cursor: pointer; font: inherit; font-size: 13px; }
+  button.act:hover { border-color: var(--accent); color: var(--accent); }
+  #msgs tbody tr { cursor: pointer; }
+  #msgs tbody tr:hover { background: var(--bg); }
+  .empty { padding: 28px; text-align: center; color: var(--muted); }
+  .err { color: var(--bad); }
+  dialog { border: 1px solid var(--line); border-radius: 12px; padding: 0; width: min(1100px, 96vw);
+           background: var(--panel); color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .dhead { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+  .dhead h3 { margin: 0; font-size: 15px; }
+  .dbody { padding: 16px 18px; max-height: 75vh; overflow: auto; }
+  .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 14px; margin-bottom: 18px; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .flow { display: flex; align-items: center; gap: 10px; margin: 4px 0 18px; flex-wrap: wrap; }
+  .node { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--bg); }
+  .node small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; }
+  .arrow { color: var(--muted); }
+  .set { display: grid; grid-template-columns: 260px 1fr; gap: 6px 18px; align-items: start; margin-bottom: 8px; }
+  .set > label { padding-top: 6px; }
+  .set .hint { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .set .hint a { color: var(--accent); cursor: pointer; }
+  .set input[type=text], .set input[type=number], .set textarea, .uform input {
+    width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--bg); color: var(--ink); font: inherit; }
+  .set textarea { font-family: var(--mono); font-size: 12.5px; min-height: 84px; resize: vertical; }
+  .set .row { padding: 10px 0; border-bottom: 1px solid var(--line); display: contents; }
+  .badge { font-size: 11px; color: var(--warn); background: var(--warn-bg); padding: 0 6px; border-radius: 99px; margin-left: 6px; }
+  .uform { display: grid; grid-template-columns: 1fr 1fr 1.4fr auto; gap: 8px; padding: 10px 0; }
+  .msgline { min-height: 20px; margin: 8px 0; }
+  .ok-text { color: var(--ok); }
+  h4.sec { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  h4.sec:first-child { margin-top: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>mailrelay <span id="host"></span></h1>
+  <div class="listen" id="listen"></div>
+  <div class="spacer"></div>
+  <div class="live"><span class="dot" id="dot"></span><span id="updated">loading…</span></div>
+  <button class="act" id="openSettings">Settings</button>
+</header>
+
+<main>
+  <div class="cards" id="cards"></div>
+
+  <div class="grid2">
+    <section>
+      <h2>Upstream SMTP servers <small>tried in this order · last 24 h</small></h2>
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Server</th><th>Last IP / banner</th><th>Login</th>
+          <th class="num">Sent</th><th class="num">Failed</th><th class="num">Avg ms</th><th>Last success</th><th>Last error</th></tr></thead>
+        <tbody id="ups"></tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Top clients <small>last 24 h</small></h2>
+      <table>
+        <thead><tr><th>Client IP</th><th>User</th><th class="num">Msgs</th><th class="num">Sent</th><th>Last seen</th></tr></thead>
+        <tbody id="clients"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <section>
+    <h2>Messages <small id="msgcount"></small></h2>
+    <div class="toolbar">
+      <div id="chips"></div>
+      <input type="search" id="q" placeholder="Search relay ID, sender, recipient, subject, client IP, user…">
+      <button class="act" id="retry" title="Try every queued message again now">Retry queue now</button>
+    </div>
+    <table id="msgs">
+      <thead><tr><th>Received</th><th>Relay ID</th><th>Client</th><th>From</th><th>To</th><th>Subject</th>
+        <th>Status</th><th>Relayed via</th><th class="num">Tries</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</main>
+
+<dialog id="detail">
+  <div class="dhead"><h3 id="dtitle"></h3><span id="dstatus"></span><div class="spacer"></div>
+    <button class="act" id="dretry" hidden>Retry now</button>
+    <button class="act" onclick="detail.close()">Close</button></div>
+  <div class="dbody" id="dbody"></div>
+</dialog>
+
+<dialog id="settingsDlg">
+  <div class="dhead"><h3>Relay settings</h3><span class="muted">applied immediately · no restart needed</span>
+    <div class="spacer"></div><button class="act" onclick="settingsDlg.close()">Close</button></div>
+  <div class="dbody">
+    <h4 class="sec">Access</h4>
+    <div class="set" id="setAccess"></div>
+    <h4 class="sec">Relay users <small class="muted" style="text-transform:none;letter-spacing:0">SMTP AUTH accounts · clients that log in may relay from any IP</small></h4>
+    <table>
+      <thead><tr><th>User</th><th>Status</th><th>Note</th><th>Last login</th><th>Source</th><th></th></tr></thead>
+      <tbody id="users"></tbody>
+    </table>
+    <form class="uform" id="uform" autocomplete="off">
+      <input name="username" placeholder="username" required>
+      <input name="password" type="password" placeholder="password (min 8) — blank keeps current" autocomplete="new-password">
+      <input name="note" placeholder="note, e.g. printer 3F">
+      <button class="act" type="submit">Add / update user</button>
+    </form>
+    <h4 class="sec">Sender</h4>
+    <div class="set" id="setSender"></div>
+    <h4 class="sec">Queue</h4>
+    <div class="set" id="setQueue"></div>
+    <div class="msgline" id="setMsg"></div>
+    <button class="act" id="saveSettings">Save changes</button>
+    <p class="muted" style="font-size:12px">Defaults come from environment variables / config.toml. A value saved here overrides
+      the default until you reset it. Ports, TLS certificates, upstream servers and admin login still require a restart.</p>
+  </div>
+</dialog>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pill = s => s ? `<span class="pill ${esc(s)}">${esc(s)}</span>` : "";
+const fmtTime = iso => {
+  if (!iso) return '<span class="muted">—</span>';
+  const d = new Date(iso);
+  return `<span title="${esc(iso)} (UTC)">${d.toLocaleString(undefined, {month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit"})}</span>`;
+};
+const ago = iso => {
+  if (!iso) return '<span class="muted">never</span>';
+  const s = Math.round((Date.now() - new Date(iso)) / 1000);
+  const t = s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)}m` : s < 86400 ? `${Math.round(s/3600)}h` : `${Math.round(s/86400)}d`;
+  return `<span title="${esc(iso)} (UTC)">${t} ago</span>`;
+};
+const bytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n/1024).toFixed(1)} KB` : `${(n/1048576).toFixed(1)} MB`;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, {credentials: "same-origin", ...opts,
+                               headers: {"Content-Type": "application/json", ...(opts.headers || {})}});
+  if (!r.ok) {
+    let msg = `${r.status} ${r.statusText}`;
+    try { const j = await r.json(); if (j.error) msg = j.error; } catch (_) {}
+    throw new Error(msg);
+  }
+  return r.json();
+}
+
+// ---------------------------------------------------------------- settings
+const GROUPS = {
+  setAccess: ["allowed_networks", "require_auth", "max_recipients"],
+  setSender: ["allowed_sender_domains", "rewrite_from", "from_address", "from_name"],
+  setQueue: ["retry_minutes", "queue_max_age_hours"],
+};
+const asText = (t, v) => Array.isArray(v) ? v.join(t === "cidrs" || t === "domains" ? "\n" : ", ") : (v ?? "");
+const showDefault = (t, v) => t === "bool" ? (v ? "on" : "off") : Array.isArray(v) ? (v.length ? v.join(", ") : "(empty)") : (v === "" ? "(empty)" : v);
+let SET = {};
+
+function field(k, s) {
+  const id = "f_" + k, v = s.value;
+  const input = s.type === "bool" ? `<label><input type="checkbox" id="${id}" ${v ? "checked" : ""}> enabled</label>`
+    : s.type === "cidrs" || s.type === "domains" ? `<textarea id="${id}" placeholder="one per line">${esc(asText(s.type, v))}</textarea>`
+    : `<input type="${s.type === "int" || s.type === "float" ? "number" : "text"}" ${s.type === "float" ? 'step="any"' : ""} id="${id}" value="${esc(asText(s.type, v))}">`;
+  return `<label for="${id}">${esc(s.label)}${s.overridden ? '<span class="badge">changed</span>' : ""}</label>
+    <div>${input}<div class="hint">default: <span class="mono">${esc(showDefault(s.type, s.default))}</span>
+      ${s.overridden ? ` · <a data-reset="${k}">reset to default</a> · changed ${ago(s.updated_utc)} by ${esc(s.updated_by)}` : ""}</div></div>`;
+}
+
+function renderSettings(d) {
+  SET = d.settings;
+  for (const [box, keys] of Object.entries(GROUPS)) $("#" + box).innerHTML = keys.map(k => field(k, SET[k])).join("");
+  $("#users").innerHTML = d.users.length ? d.users.map(u => `<tr>
+      <td class="mono"><b>${esc(u.username)}</b></td>
+      <td>${u.enabled ? '<span class="pill sent">enabled</span>' : '<span class="pill failed">disabled</span>'}</td>
+      <td>${esc(u.note || "")}</td><td>${u.source === "db" ? ago(u.last_login_utc) : '<span class="muted">—</span>'}</td>
+      <td class="muted">${u.source === "env" ? "environment (read-only)" : "web"}</td>
+      <td style="white-space:nowrap">${u.source === "db" ? `
+        <button class="act" data-edit="${esc(u.username)}" data-note="${esc(u.note || "")}">Edit</button>
+        <button class="act" data-toggle="${esc(u.username)}" data-enabled="${u.enabled ? 1 : 0}" data-note="${esc(u.note || "")}">${u.enabled ? "Disable" : "Enable"}</button>
+        <button class="act" data-del="${esc(u.username)}">Delete</button>` : ""}</td></tr>`).join("")
+    : `<tr><td colspan="6" class="empty">No relay users — clients can only relay from the allowed networks</td></tr>`;
+}
+
+function setMsg(text, ok) { $("#setMsg").innerHTML = `<span class="${ok ? "ok-text" : "err"}">${esc(text)}</span>`; }
+
+async function settingsCall(path, method, body, okText) {
+  try {
+    renderSettings(await api(path, {method, body: body ? JSON.stringify(body) : undefined}));
+    setMsg(okText, true); refresh(); return true;
+  } catch (e) { setMsg(e.message, false); return false; }
+}
+
+$("#openSettings").onclick = async () => {
+  $("#setMsg").innerHTML = "";
+  try { renderSettings(await api("/api/settings")); settingsDlg.showModal(); }
+  catch (e) { alert("Could not load settings: " + e.message); }
+};
+
+$("#saveSettings").onclick = () => {
+  const changes = {};
+  for (const [k, s] of Object.entries(SET)) {
+    const el = $("#f_" + k);
+    if (s.type === "bool") { if (el.checked !== s.value) changes[k] = el.checked; }
+    else if (el.value.trim() !== String(asText(s.type, s.value))) changes[k] = el.value;
+  }
+  if (!Object.keys(changes).length) return setMsg("Nothing changed", true);
+  settingsCall("/api/settings", "PUT", changes, "Saved: " + Object.keys(changes).join(", "));
+};
+
+settingsDlg.addEventListener("click", e => {
+  const t = e.target;
+  if (t.dataset.reset) settingsCall("/api/settings/reset", "POST", {keys: [t.dataset.reset]}, `${t.dataset.reset} reset to default`);
+  if (t.dataset.del && confirm(`Delete relay user '${t.dataset.del}'? Clients using it can no longer log in.`))
+    settingsCall("/api/users/" + encodeURIComponent(t.dataset.del), "DELETE", null, `Deleted ${t.dataset.del}`);
+  if (t.dataset.toggle) settingsCall("/api/users", "POST",
+    {username: t.dataset.toggle, enabled: t.dataset.enabled !== "1", note: t.dataset.note},
+    `${t.dataset.toggle} ${t.dataset.enabled === "1" ? "disabled" : "enabled"}`);
+  if (t.dataset.edit) {
+    const f = $("#uform"); f.username.value = t.dataset.edit; f.note.value = t.dataset.note; f.password.value = ""; f.password.focus();
+  }
+});
+
+$("#uform").onsubmit = async e => {
+  e.preventDefault();
+  const f = e.target, body = {username: f.username.value.trim(), note: f.note.value};
+  if (f.password.value) body.password = f.password.value;
+  const existing = [...document.querySelectorAll("[data-toggle]")].find(b => b.dataset.toggle === body.username);
+  body.enabled = existing ? existing.dataset.enabled === "1" : true;
+  if (await settingsCall("/api/users", "POST", body, `Saved user ${body.username}`)) f.reset();
+};
+
+let status = "", query = "";
+const STATUSES = [["", "All"], ["sent", "Relayed"], ["queued", "Queued"], ["failed", "Failed"]];
+$("#chips").innerHTML = STATUSES.map(([v, l]) => `<button class="chip${v === status ? " on" : ""}" data-s="${v}">${l}</button>`).join(" ");
+$("#chips").onclick = e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  status = b.dataset.s;
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", c === b));
+  loadMessages();
+};
+let qt; $("#q").oninput = e => { clearTimeout(qt); qt = setTimeout(() => { query = e.target.value.trim(); loadMessages(); }, 250); };
+$("#retry").onclick = async () => {
+  const r = await api("/api/queue/retry", {method: "POST", body: "{}"});
+  $("#retry").textContent = `Retrying ${r.queued}…`;
+  setTimeout(() => { $("#retry").textContent = "Retry queue now"; refresh(); }, 2500);
+};
+
+function renderOverview(o) {
+  const c = o.config;
+  $("#host").textContent = "· " + c.hostname;
+  const auth = c.auth_users ? (c.require_auth ? `required (${c.auth_users} users)` : `optional (${c.auth_users} users)`) : "off";
+  $("#listen").innerHTML = `
+    <span>SMTP <b>:${c.smtp_port}</b></span>
+    <span ${c.tls ? `title="${esc(`${c.tls.subject}\nnames: ${c.tls.names.join(", ")}\nvalid until ${c.tls.not_after}\nSHA-256 ${c.tls.sha256}`)}"` : ""}>STARTTLS <b>${c.starttls ? (c.tls?.self_signed ? "on (self-signed)" : "on") : "off"}</b></span>
+    <span>Client auth <b>${auth}</b></span>
+    <span title="${esc(c.allowed_networks.join(", "))}">Allowed nets <b>${c.allowed_networks.length}</b></span>
+    ${c.rewrite_from ? `<span>Rewrite From → <b>${esc(c.rewrite_from)}</b></span>` : ""}`;
+  const failed = o.bounced + o.expired, done = o.sent + failed;
+  const rate = done ? Math.round(o.sent / done * 1000) / 10 : null;
+  $("#cards").innerHTML = [
+    ["Received", o.received, `${bytes(o.bytes)} · last ${o.window_hours} h`, ""],
+    ["Relayed", o.sent, rate === null ? "no deliveries yet" : `${rate}% success`, "ok"],
+    ["Queued now", o.queued_now, `retry ${c.retry_minutes.join("/")} min · max ${c.queue_max_age_hours} h`, o.queued_now ? "warn" : ""],
+    ["Bounced", o.bounced, "rejected by upstream", o.bounced ? "bad" : ""],
+    ["Expired", o.expired, "gave up after max age", o.expired ? "bad" : ""],
+  ].map(([k, v, s, cls]) => `<div class="card ${cls}"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join("");
+
+  $("#ups").innerHTML = c.upstreams.map(u => {
+    const s = o.upstreams[u.name] || {};
+    const le = s.last_error;
+    const recentErr = le && (!s.last_ok || le.timestamp_utc > s.last_ok);
+    return `<tr>
+      <td class="num">${u.order}</td><td><b>${esc(u.name)}</b></td>
+      <td class="mono">${esc(u.host)}:${u.port} <span class="muted">${esc(u.security)}</span></td>
+      <td class="mono trunc" title="${esc(s.last_banner)}">${esc(s.last_ip || "—")} <span class="muted">${esc(s.last_banner || "")}</span></td>
+      <td class="mono">${esc(u.username || "—")}</td>
+      <td class="num">${s.sent || 0}</td><td class="num ${s.failed ? "err" : ""}">${s.failed || 0}</td>
+      <td class="num">${s.avg_ms ?? "—"}</td><td>${ago(s.last_ok)}</td>
+      <td class="trunc ${recentErr ? "err" : "muted"}" title="${esc(le?.error)}">${le ? ago(le.timestamp_utc) + " · " + esc(le.error) : "—"}</td></tr>`;
+  }).join("");
+
+  $("#clients").innerHTML = o.clients.length ? o.clients.map(x => `<tr>
+      <td class="mono">${esc(x.client_ip || "api")}</td><td class="mono">${esc(x.client_user || "—")}</td>
+      <td class="num">${x.messages}</td><td class="num">${x.sent}</td><td>${ago(x.last_seen)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">No clients yet</td></tr>`;
+}
+
+async function loadMessages() {
+  const p = new URLSearchParams({limit: 200}); if (status) p.set("status", status); if (query) p.set("q", query);
+  const rows = await api("/api/messages?" + p);
+  $("#msgcount").textContent = `${rows.length}${rows.length === 200 ? "+" : ""} shown`;
+  $("#msgs tbody").innerHTML = rows.length ? rows.map(m => `<tr data-id="${esc(m.relay_id)}">
+      <td>${fmtTime(m.received_utc)}</td><td class="mono">${esc(m.relay_id)}</td>
+      <td class="mono">${esc(m.client_ip || "api")}${m.client_user ? `<br><span class="muted">${esc(m.client_user)}</span>` : ""}</td>
+      <td class="trunc" title="${esc(m.mail_from)}">${esc(m.mail_from || "<>")}</td>
+      <td class="trunc" title="${esc(m.rcpt_to)}">${esc(m.rcpt_to)}</td>
+      <td class="trunc" title="${esc(m.subject)}">${esc(m.subject)}</td>
+      <td>${pill(m.status)}${m.status === "queued" ? `<br><span class="muted">next ${fmtTime(m.next_retry_utc)}</span>` : ""}</td>
+      <td>${m.upstream_name ? `<b>${esc(m.upstream_name)}</b><br><span class="mono muted">${esc(m.upstream_ip || m.upstream_host || "")}</span>` : "—"}</td>
+      <td class="num">${m.attempts}</td></tr>`).join("")
+    : `<tr><td colspan="9" class="empty">No messages${status || query ? " match" : " yet"}</td></tr>`;
+}
+$("#msgs tbody").onclick = e => { const tr = e.target.closest("tr[data-id]"); if (tr) openDetail(tr.dataset.id); };
+
+async function openDetail(id) {
+  const m = await api("/api/messages/" + encodeURIComponent(id));
+  $("#dtitle").textContent = m.subject || "(no subject)";
+  $("#dstatus").innerHTML = pill(m.status) + " " + pill(m.source);
+  $("#dretry").hidden = m.status !== "queued";
+  $("#dretry").onclick = async () => { await api("/api/queue/retry", {method: "POST", body: JSON.stringify({relay_id: id})});
+                                       setTimeout(() => { openDetail(id); refresh(); }, 2000); };
+  const last = m.attempt_log.filter(a => a.status === "sent").pop() || m.attempt_log[m.attempt_log.length - 1] || {};
+  $("#dbody").innerHTML = `
+    <div class="flow">
+      <div class="node"><small>Client</small><span class="mono">${esc(m.client_ip || "api")}</span> ${m.client_helo ? `<span class="muted">(${esc(m.client_helo)})</span>` : ""}${m.client_user ? `<br>user <b>${esc(m.client_user)}</b>` : ""}${m.client_tls ? " · TLS" : ""}</div>
+      <span class="arrow">→</span>
+      <div class="node"><small>mailrelay</small><span class="mono">${esc(m.relay_id)}</span></div>
+      <span class="arrow">→</span>
+      <div class="node"><small>Upstream</small>${last.upstream_name ? `<b>${esc(last.upstream_name)}</b> <span class="mono">${esc(last.upstream_host)}:${last.upstream_port}</span><br><span class="mono muted">${esc(last.upstream_ip || "")} ${esc(last.tls_version || "")}</span>` : "—"}</div>
+      <span class="arrow">→</span>
+      <div class="node"><small>Recipients</small>${esc(m.rcpt_to)}</div>
+    </div>
+    <div class="kv">
+      <div>Received</div><div>${fmtTime(m.received_utc)} <span class="muted mono">${esc(m.received_utc)}</span></div>
+      <div>Last update</div><div>${fmtTime(m.updated_utc)}</div>
+      <div>Envelope from</div><div class="mono">${esc(m.mail_from || "<>")}${m.client_mail_from !== m.mail_from ? ` <span class="muted">(client sent ${esc(m.client_mail_from || "<>")})</span>` : ""}</div>
+      <div>Message-ID</div><div class="mono">${esc(m.message_id || "—")}</div>
+      <div>Size</div><div>${bytes(m.size_bytes || 0)}</div>
+      <div>Upstream reply</div><div class="mono">${esc((m.smtp_code || "") + " " + (m.smtp_response || ""))}</div>
+      ${m.last_error ? `<div>Last error</div><div class="mono err">${esc(m.last_error)}</div>` : ""}
+      ${m.next_retry_utc ? `<div>Next retry</div><div>${fmtTime(m.next_retry_utc)}</div>` : ""}
+    </div>
+    <h4 style="margin:0 0 8px">Delivery attempts (${m.attempt_log.length})</h4>
+    <table>
+      <thead><tr><th>#</th><th>Time</th><th>Server</th><th>Connected IP</th><th>Banner</th><th>TLS</th><th>Login</th>
+        <th>Result</th><th>Upstream reply / error</th><th class="num">ms</th></tr></thead>
+      <tbody>${m.attempt_log.map(a => `<tr>
+        <td class="num">${a.attempt}</td><td>${fmtTime(a.timestamp_utc)}</td>
+        <td><b>${esc(a.upstream_name)}</b><br><span class="mono muted">${esc(a.upstream_host)}:${a.upstream_port}</span></td>
+        <td class="mono">${esc(a.upstream_ip || "—")}</td><td class="mono trunc" title="${esc(a.server_banner)}">${esc(a.server_banner || "—")}</td>
+        <td class="mono">${esc(a.tls_version || a.security)}</td><td class="mono">${esc(a.auth_user || "—")}</td>
+        <td>${pill(a.status)}</td>
+        <td class="mono ${a.status === "sent" ? "" : "err"}">${esc(a.status === "sent" ? `${a.smtp_code} ${a.smtp_response}` : a.error)}${a.status === "sent" && a.error ? `<br><span class="err">${esc(a.error)}</span>` : ""}</td>
+        <td class="num">${a.duration_ms}</td></tr>`).join("")}</tbody>
+    </table>`;
+  if (!detail.open) detail.showModal();
+}
+
+async function refresh() {
+  try {
+    const [o] = await Promise.all([api("/api/overview"), loadMessages()]);
+    renderOverview(o);
+    $("#dot").classList.remove("off");
+    $("#updated").textContent = "updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("#dot").classList.add("off");
+    $("#updated").textContent = "connection problem: " + e.message;
+  }
+}
+refresh();
+setInterval(() => { if (!document.hidden && !detail.open) refresh(); }, 10000);
+</script>
+</body>
+</html>

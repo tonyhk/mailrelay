@@ -1,0 +1,17 @@
+.env
+config.toml
+data/
+secrets/
+__pycache__/
+*.zip
+# never commit generated certificates, keys or local databases
+*.pem
+*.key
+*.db
+*.db-*
+*.jsonl
+.venv/
+venv/
+.vscode/
+.idea/
+.DS_Store

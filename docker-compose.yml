@@ -1,0 +1,27 @@
+# Standalone:  docker compose up -d
+# Configure everything in .env (copy .env.example).
+services:
+  mailrelay:
+    image: ${MAILRELAY_IMAGE:-mailrelay:latest}
+    build: .
+    container_name: mailrelay
+    hostname: ${MAILRELAY_HOSTNAME:-mailrelay}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "${MAILRELAY_SMTP_PUBLISH:-25}:2525"     # clients send mail here (use 587:2525 too if you like)
+      - "${MAILRELAY_WEB_PUBLISH:-8080}:8080"    # overview dashboard + API
+    volumes:
+      - mailrelay-data:/app/data                 # message log + retry queue
+      # - ./certs:/certs:ro                      # own cert: MAILRELAY_TLS_CERT=/certs/fullchain.pem
+      #                                           (MAILRELAY_TLS_SELF_SIGNED=true generates one in the data volume)
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+volumes:
+  mailrelay-data:

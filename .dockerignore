@@ -1,0 +1,11 @@
+.git
+.env
+*.env
+config.toml
+data/
+secrets/
+**/__pycache__
+*.zip
+.forgejo/
+.github/
+README.md

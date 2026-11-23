@@ -1,0 +1,117 @@
+# Build, smoke-test and publish the Docker image to GitHub Container Registry (ghcr.io).
+#
+#   pull request      -> build + smoke test only (nothing is published)
+#   push to main      -> ghcr.io/<owner>/<repo>:latest  and  :sha-<short>
+#   tag v1.2.3        -> :1.2.3, :1.2, :1  and :latest
+#
+# No secrets needed: the built-in GITHUB_TOKEN is allowed to push packages of this repo.
+# After the first push, make the package public once: GitHub -> your profile -> Packages -> mailrelay
+# -> Package settings -> Change visibility.
+name: docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Image name (registry paths must be lowercase)
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # ---- 1. build for this runner and smoke-test it ----
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: mailrelay:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test (start, health, SMTP banner, self-signed STARTTLS)
+        run: |
+          docker run -d --name mr -p 2525:2525 -p 8080:8080 \
+            -e SMTP_1_HOST=127.0.0.1 -e SMTP_1_SECURITY=none \
+            -e MAILRELAY_ADMIN_PASSWORD=ci-only -e MAILRELAY_TLS_SELF_SIGNED=true \
+            -e MAILRELAY_HOSTNAME=mailrelay.ci \
+            mailrelay:ci
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' mr)" = healthy ] && break
+            [ "$(docker inspect -f '{{.State.Running}}' mr)" = true ] || break
+            sleep 2
+          done
+          docker logs mr
+          curl -fsS http://127.0.0.1:8080/health
+          curl -fsS -u admin:ci-only http://127.0.0.1:8080/api/settings > /dev/null
+          python3 - <<'PY'
+          import smtplib, ssl
+          s = smtplib.SMTP("127.0.0.1", 2525, timeout=10)
+          code, _ = s.ehlo()
+          assert code == 250 and s.has_extn("starttls"), "STARTTLS not offered"
+          ctx = ssl.create_default_context(); ctx.check_hostname = False; ctx.verify_mode = ssl.CERT_NONE
+          s.starttls(context=ctx)
+          print("STARTTLS OK:", s.sock.version())
+          s.quit()
+          PY
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs mr || true
+
+      # ---- 2. publish multi-arch image (not for pull requests) ----
+      - name: Tags and labels
+        id: meta
+        if: github.event_name != 'pull_request'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+          labels: |
+            org.opencontainers.image.title=mailrelay
+            org.opencontainers.image.description=SMTP relay to an authenticated upstream server with logging and web overview
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
