@@ -37,7 +37,7 @@ jobs:
       - name: Image name (registry paths must be lowercase)
         run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v3
 
       # ---- 1. build for this runner and smoke-test it ----
