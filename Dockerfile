@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 LABEL org.opencontainers.image.title="mailrelay" \
       org.opencontainers.image.description="SMTP relay to an authenticated upstream server with logging and web overview"
